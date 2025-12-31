@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/property.dart';
+import '../services/database_service.dart';
+import '../services/auth_service.dart';
 import '../widgets/property_card.dart';
 import 'property_detail_screen.dart';
+import 'profile_screen.dart';
+import 'new_post_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,18 +20,60 @@ class _HomeScreenState extends State<HomeScreen> {
   static const Color lightGray = Color(0xFFF5F5F5);
   static const Color mediumGray = Color(0xFF9E9E9E);
 
+  // Services
+  final _databaseService = DatabaseService();
+  final _authService = AuthService();
+
   // State
   final TextEditingController _searchController = TextEditingController();
   String _selectedFilter = 'All';
   int _selectedNavIndex = 0;
-  final List<Property> _allProperties = Property.getSampleProperties();
+  List<Property> _allProperties = [];
   List<Property> _filteredProperties = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+  String? _userName;
 
   @override
   void initState() {
     super.initState();
-    _filteredProperties = _allProperties;
+    _loadUserProfile();
+    _loadProperties();
     _searchController.addListener(_onSearchChanged);
+  }
+
+  Future<void> _loadUserProfile() async {
+    final user = await _authService.getCurrentUserProfile();
+    if (mounted) {
+      setState(() {
+        _userName = user?.name ?? 'User';
+      });
+    }
+  }
+
+  Future<void> _loadProperties() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final properties = await _databaseService.getProperties();
+      if (mounted) {
+        setState(() {
+          _allProperties = properties;
+          _filteredProperties = properties;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load properties: $e';
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -41,21 +87,44 @@ class _HomeScreenState extends State<HomeScreen> {
     _applyFilters();
   }
 
-  void _applyFilters() {
+  void _applyFilters() async {
+    final query = _searchController.text.trim();
+    
     setState(() {
-      String query = _searchController.text.toLowerCase();
-      _filteredProperties = _allProperties.where((property) {
-        final matchesSearch = property.name.toLowerCase().contains(query) ||
-            property.address.toLowerCase().contains(query) ||
-            property.description.toLowerCase().contains(query);
-
-        final matchesFilter = _selectedFilter == 'All' ||
-            (_selectedFilter == 'House' && property.hasGarden) ||
-            (_selectedFilter == 'Apartment' && !property.hasGarden);
-
-        return matchesSearch && matchesFilter;
-      }).toList();
+      _isLoading = true;
     });
+
+    try {
+      // Use database search if query is provided, otherwise filter locally
+      List<Property> properties;
+      if (query.isNotEmpty) {
+        properties = await _databaseService.getProperties(searchQuery: query);
+      } else {
+        properties = _allProperties;
+      }
+
+      // Apply local filter
+      if (_selectedFilter != 'All') {
+        properties = properties.where((property) {
+          return (_selectedFilter == 'House' && property.hasGarden) ||
+              (_selectedFilter == 'Apartment' && !property.hasGarden);
+        }).toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          _filteredProperties = properties;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Search failed: $e';
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _onFilterSelected(String filter) {
@@ -78,9 +147,9 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Good Evening Nadia Solomon -',
-                    style: TextStyle(
+                  Text(
+                    'Good Evening ${_userName ?? 'User'} -',
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                       color: primaryDark,
@@ -139,13 +208,25 @@ class _HomeScreenState extends State<HomeScreen> {
             // Filter Pills
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
+              child: Column(
                 children: [
-                  _buildFilterPill('All', _selectedFilter == 'All'),
-                  const SizedBox(width: 12),
-                  _buildFilterPill('House', _selectedFilter == 'House'),
-                  const SizedBox(width: 12),
-                  _buildFilterPill('Apartment', _selectedFilter == 'Apartment'),
+                  Row(
+                    children: [
+                      _buildFilterPill('All', _selectedFilter == 'All'),
+                      const SizedBox(width: 12),
+                      _buildFilterPill('House', _selectedFilter == 'House'),
+                      const SizedBox(width: 12),
+                      _buildFilterPill('Apartment', _selectedFilter == 'Apartment'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      _buildActionPill('Add Post', Icons.add),
+                      const SizedBox(width: 12),
+                      _buildActionPill('View Appointments', Icons.calendar_today),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -179,45 +260,79 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             // Properties List
             Expanded(
-              child: _filteredProperties.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.search_off,
-                            size: 64,
-                            color: mediumGray,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No properties found',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: mediumGray,
-                            ),
-                          ),
-                        ],
-                      ),
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: _filteredProperties.length,
-                      itemBuilder: (context, index) {
-                        final property = _filteredProperties[index];
-                        return PropertyCard(
-                          property: property,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    PropertyDetailScreen(property: property),
+                  : _errorMessage != null
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                size: 64,
+                                color: mediumGray,
                               ),
-                            );
-                          },
-                        );
-                      },
-                    ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _errorMessage!,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: mediumGray,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: _loadProperties,
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        )
+                      : _filteredProperties.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.search_off,
+                                    size: 64,
+                                    color: mediumGray,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'No properties found',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: mediumGray,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : RefreshIndicator(
+                              onRefresh: _loadProperties,
+                              child: ListView.builder(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                itemCount: _filteredProperties.length,
+                                itemBuilder: (context, index) {
+                                  final property = _filteredProperties[index];
+                                  return PropertyCard(
+                                    property: property,
+                                    onTap: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              PropertyDetailScreen(property: property),
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
             ),
           ],
         ),
@@ -236,9 +351,18 @@ class _HomeScreenState extends State<HomeScreen> {
         child: BottomNavigationBar(
           currentIndex: _selectedNavIndex,
           onTap: (index) {
-            setState(() {
-              _selectedNavIndex = index;
-            });
+            if (index == 4) {
+              // Navigate to Profile screen
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const ProfileScreen(),
+                ),
+              );
+            } else {
+              setState(() {
+                _selectedNavIndex = index;
+              });
+            }
           },
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.white,
@@ -292,6 +416,51 @@ class _HomeScreenState extends State<HomeScreen> {
             fontWeight: FontWeight.w600,
             fontSize: 14,
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionPill(String label, IconData icon) {
+    return GestureDetector(
+      onTap: () {
+        if (label == 'Add Post') {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const NewPostScreen(),
+            ),
+          );
+        } else if (label == 'View Appointments') {
+          // TODO: Navigate to appointments screen when implemented
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(25),
+          border: Border.all(
+            color: mediumGray.withOpacity(0.3),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: primaryDark,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: primaryDark,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ],
         ),
       ),
     );
