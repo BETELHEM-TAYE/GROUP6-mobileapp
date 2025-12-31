@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/property.dart';
-import 'book_completion_screen.dart';
 
 class BookingScreen extends StatefulWidget {
   final Property property;
@@ -61,17 +60,6 @@ class _BookingScreenState extends State<BookingScreen> {
     return 'ETB ${parts.join(',')}';
   }
 
-  String _generateBookingReference() {
-    // Generate a random 6-character booking reference
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final random = DateTime.now().millisecondsSinceEpoch;
-    final ref = StringBuffer();
-    for (int i = 0; i < 6; i++) {
-      ref.write(chars[(random + i) % chars.length]);
-    }
-    return ref.toString();
-  }
-
   void _handleConfirmBooking() {
     if (_selectedDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -92,20 +80,13 @@ class _BookingScreenState extends State<BookingScreen> {
       return;
     }
 
-    // Generate booking reference and date
-    final bookingReference = _generateBookingReference();
-    final bookingDate = DateFormat('dd/MM/yy').format(_selectedDate!);
-
-    // Navigate to book completion screen
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => BookCompletionScreen(
-          property: widget.property,
-          bookingReference: bookingReference,
-          bookingDate: bookingDate,
-        ),
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Booking confirmed! We will contact you soon.'),
+        backgroundColor: Colors.green,
       ),
     );
+    Navigator.of(context).pop();
   }
 
   @override

@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/property.dart';
-import '../services/database_service.dart';
-import '../services/auth_service.dart';
 import 'booking_screen.dart';
-import 'chat_screen.dart';
 
 class PropertyDetailScreen extends StatefulWidget {
   final Property property;
@@ -24,14 +20,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
   static const Color lightGray = Color(0xFFF5F5F5);
   static const Color mediumGray = Color(0xFF9E9E9E);
 
-  // Services
-  final _databaseService = DatabaseService();
-  final _authService = AuthService();
-  final supabase = Supabase.instance.client;
-
   bool _isDescriptionExpanded = false;
-  int _currentImageIndex = 0;
-  bool _isLoadingChat = false;
 
   @override
   Widget build(BuildContext context) {
@@ -74,71 +63,25 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Property Images
+            // Property Image
             Container(
               height: 300,
               width: double.infinity,
               color: lightGray,
-              child: property.imageUrls.isEmpty
-                  ? Container(
-                      color: lightGray,
-                      child: const Icon(
-                        Icons.image_not_supported,
-                        size: 64,
-                        color: mediumGray,
-                      ),
-                    )
-                  : Stack(
-                      children: [
-                        PageView.builder(
-                          itemCount: property.imageUrls.length,
-                          onPageChanged: (index) {
-                            setState(() {
-                              _currentImageIndex = index;
-                            });
-                          },
-                          itemBuilder: (context, index) {
-                            return Image.network(
-                              property.imageUrls[index],
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  color: lightGray,
-                                  child: const Icon(
-                                    Icons.image_not_supported,
-                                    size: 64,
-                                    color: mediumGray,
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
-                        if (property.imageUrls.length > 1)
-                          Positioned(
-                            bottom: 16,
-                            left: 0,
-                            right: 0,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: List.generate(
-                                property.imageUrls.length,
-                                (index) => Container(
-                                  width: 8,
-                                  height: 8,
-                                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: _currentImageIndex == index
-                                        ? Colors.white
-                                        : Colors.white.withOpacity(0.5),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
+              child: Image.network(
+                property.imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: lightGray,
+                    child: const Icon(
+                      Icons.image_not_supported,
+                      size: 64,
+                      color: mediumGray,
                     ),
+                  );
+                },
+              ),
             ),
             // Property Info
             Padding(
@@ -314,7 +257,13 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: OutlinedButton(
-                onPressed: _isLoadingChat ? null : _handleMessage,
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Message functionality coming soon!'),
+                    ),
+                  );
+                },
                 style: OutlinedButton.styleFrom(
                   foregroundColor: primaryDark,
                   side: const BorderSide(color: primaryDark, width: 2),
@@ -323,72 +272,19 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                     borderRadius: BorderRadius.circular(15),
                   ),
                 ),
-                child: _isLoadingChat
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text(
-                        'Message',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                child: const Text(
+                  'Message',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
           ],
         ),
       ),
     );
-  }
-
-  Future<void> _handleMessage() async {
-    setState(() {
-      _isLoadingChat = true;
-    });
-
-    try {
-      final currentUser = _authService.getCurrentUser();
-      if (currentUser == null) {
-        throw Exception('User not authenticated');
-      }
-
-      // Get or create chat
-      final chatResult = await _databaseService.getOrCreateChat(
-        renterId: currentUser.id,
-        landlordId: widget.property.landlordId,
-        propertyId: widget.property.id,
-      );
-
-      if (mounted) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => ChatScreen(
-              chatId: chatResult['chatId'] as String,
-              contactName: 'Property Owner',
-              propertyId: widget.property.id,
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to start chat: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingChat = false;
-        });
-      }
-    }
   }
 
   Widget _buildFeatureIcon(IconData icon, String label) {
