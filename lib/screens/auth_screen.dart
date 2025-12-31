@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/form_card.dart';
-import 'home_screen.dart';
+import '../services/auth_service.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -20,6 +20,8 @@ class _AuthScreenState extends State<AuthScreen> {
   // State
   bool _isLogin = true; // true for Login, false for Sign Up
   bool _obscurePassword = true;
+  bool _isLoading = false;
+  final _authService = AuthService();
 
   // Controllers for Sign Up
   final _nameController = TextEditingController();
@@ -42,31 +44,203 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
-  Widget _buildSocialButton(String text, IconData icon) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.black26),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: Colors.black54, size: 20),
-          const SizedBox(width: 12),
-          Text(
-            text,
-            style: const TextStyle(
-              color: Colors.black87,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
+  Widget _buildSocialButton(String text, IconData icon, VoidCallback? onPressed) {
+    return GestureDetector(
+      onTap: _isLoading ? null : onPressed,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: Colors.black26),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.black54, size: 20),
+            const SizedBox(width: 12),
+            Text(
+              text,
+              style: TextStyle(
+                color: _isLoading ? Colors.grey : Colors.black87,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    if (_isLoading) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _authService.signInWithGoogle();
+      // Navigation will be handled by auth state listener in main.dart
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google sign in failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handleSignUp() async {
+    if (_isLoading) return;
+
+    // Validate fields
+    if (_nameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your name'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_emailSignUpController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your email'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_passwordSignUpController.text.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password must be at least 6 characters'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _authService.signUp(
+        email: _emailSignUpController.text.trim(),
+        password: _passwordSignUpController.text,
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account created successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Navigation will be handled by auth state listener in main.dart
+      }
+    } catch (e) {
+      if (mounted) {
+        String errorMessage = e.toString();
+        if (errorMessage.contains('User already registered')) {
+          errorMessage = 'An account with this email already exists';
+        } else if (errorMessage.contains('Invalid email')) {
+          errorMessage = 'Please enter a valid email address';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handleSignIn() async {
+    if (_isLoading) return;
+
+    // Validate fields
+    if (_emailLoginController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your email'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_passwordLoginController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your password'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _authService.signIn(
+        email: _emailLoginController.text.trim(),
+        password: _passwordLoginController.text,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sign in successful!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Navigation will be handled by auth state listener in main.dart
+      }
+    } catch (e) {
+      if (mounted) {
+        String errorMessage = e.toString();
+        if (errorMessage.contains('Invalid login credentials')) {
+          errorMessage = 'Invalid email or password. Please try again.';
+        } else if (errorMessage.contains('Email not confirmed')) {
+          errorMessage = 'Please verify your email address before signing in.';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Widget _buildTextField({
@@ -123,10 +297,8 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          // Social login buttons
-          _buildSocialButton('Continue with Google', Icons.g_mobiledata),
-          const SizedBox(height: 12),
-          _buildSocialButton('Continue with Apple', Icons.apple),
+          // Social login button
+          _buildSocialButton('Continue with Google', Icons.g_mobiledata, _handleGoogleSignIn),
           const SizedBox(height: 24),
           // Divider
           Row(
@@ -183,19 +355,14 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
           const SizedBox(height: 24),
           // Create account button
-          CustomButton(
-            text: 'Create an account',
-            onPressed: () {
-              // Fake sign up - navigate to home after account creation
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                  builder: (context) => const HomeScreen(),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : CustomButton(
+                  text: 'Create an account',
+                  onPressed: _handleSignUp,
+                  backgroundColor: primaryDark,
+                  borderRadius: 15,
                 ),
-              );
-            },
-            backgroundColor: primaryDark,
-            borderRadius: 15,
-          ),
         ],
       ),
     );
@@ -224,7 +391,7 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
           const SizedBox(height: 24),
           // Social login button
-          _buildSocialButton('Sign in with Google', Icons.g_mobiledata),
+          _buildSocialButton('Sign in with Google', Icons.g_mobiledata, _handleGoogleSignIn),
           const SizedBox(height: 24),
           // Divider
           Row(
@@ -268,19 +435,14 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
           const SizedBox(height: 24),
           // Sign In button
-          CustomButton(
-            text: 'Sign In',
-            onPressed: () {
-              // Fake login - accept any credentials
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                  builder: (context) => const HomeScreen(),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : CustomButton(
+                  text: 'Sign In',
+                  onPressed: _handleSignIn,
+                  backgroundColor: primaryDark,
+                  borderRadius: 15,
                 ),
-              );
-            },
-            backgroundColor: primaryDark,
-            borderRadius: 15,
-          ),
           const SizedBox(height: 16),
           // Links
           Row(
