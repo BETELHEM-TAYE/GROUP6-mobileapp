@@ -155,25 +155,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: primaryDark,
                     ),
                   ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, color: primaryDark),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: mediumGray.withOpacity(0.3),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.person,
-                          color: primaryDark,
-                        ),
-                      ),
-                    ],
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, color: primaryDark),
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
               ),

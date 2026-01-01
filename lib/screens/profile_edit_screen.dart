@@ -143,6 +143,19 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       String? newImageUrl;
       if (_selectedProfileImage != null) {
         newImageUrl = await _uploadProfileImage();
+        if (newImageUrl == null) {
+          // Image upload failed, show error and return early
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Error uploading image. Please try again.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+            setState(() => _isSaving = false);
+          }
+          return;
+        }
       }
 
       final updatedUser = User(
