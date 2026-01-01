@@ -306,5 +306,89 @@ class DatabaseService {
       rethrow;
     }
   }
+
+  /// Add a property to user's favorites
+  Future<void> addFavorite(String userId, String propertyId) async {
+    try {
+      await supabase.from('favorites').insert({
+        'user_id': userId,
+        'property_id': propertyId,
+      });
+      debugPrint("Favorite added successfully for user $userId, property $propertyId");
+    } catch (e) {
+      debugPrint("Error adding favorite: $e");
+      rethrow;
+    }
+  }
+
+  /// Remove a property from user's favorites
+  Future<void> removeFavorite(String userId, String propertyId) async {
+    try {
+      await supabase
+          .from('favorites')
+          .delete()
+          .eq('user_id', userId)
+          .eq('property_id', propertyId);
+      debugPrint("Favorite removed successfully for user $userId, property $propertyId");
+    } catch (e) {
+      debugPrint("Error removing favorite: $e");
+      rethrow;
+    }
+  }
+
+  /// Check if a property is favorited by a user
+  Future<bool> isFavorite(String userId, String propertyId) async {
+    try {
+      final result = await supabase
+          .from('favorites')
+          .select()
+          .eq('user_id', userId)
+          .eq('property_id', propertyId)
+          .maybeSingle();
+      return result != null;
+    } catch (e) {
+      debugPrint("Error checking favorite status: $e");
+      return false;
+    }
+  }
+
+  /// Get all favorite properties for a user
+  Future<List<Property>> getUserFavorites(String userId) async {
+    try {
+      // First, fetch favorite property IDs from the favorites table
+      final favoritesData = await supabase
+          .from('favorites')
+          .select('property_id')
+          .eq('user_id', userId);
+
+      // Extract property IDs
+      final favoriteIds = favoritesData
+          .map((item) => item['property_id'] as String)
+          .toList();
+
+      // If no favorites, return empty list
+      if (favoriteIds.isEmpty) {
+        debugPrint("No favorite properties found for user $userId");
+        return [];
+      }
+
+      // Fetch full property details with ratings from the view
+      final data = await supabase
+          .from('properties_with_avg_rating')
+          .select('*')
+          .inFilter('id', favoriteIds);
+
+      // Map the results to Property objects
+      final properties = data
+          .map((json) => Property.fromJson(json))
+          .toList();
+
+      debugPrint("Fetched ${properties.length} favorite properties for user $userId");
+      return properties;
+    } catch (e) {
+      debugPrint("Error getting user favorites: $e");
+      return [];
+    }
+  }
 }
 

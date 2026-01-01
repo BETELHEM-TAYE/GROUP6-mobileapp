@@ -6,6 +6,7 @@ import '../widgets/property_card.dart';
 import 'property_detail_screen.dart';
 import 'profile_screen.dart';
 import 'new_post_screen.dart';
+import 'favorites_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -335,7 +336,14 @@ class _HomeScreenState extends State<HomeScreen> {
         child: BottomNavigationBar(
           currentIndex: _selectedNavIndex,
           onTap: (index) {
-            if (index == 4) {
+            if (index == 1) {
+              // Navigate to Favorites screen
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const FavoritesScreen(),
+                ),
+              );
+            } else if (index == 4) {
               // Navigate to Profile screen
               Navigator.of(context).push(
                 MaterialPageRoute(
