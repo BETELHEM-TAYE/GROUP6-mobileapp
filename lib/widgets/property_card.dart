@@ -7,12 +7,18 @@ class PropertyCard extends StatefulWidget {
   final Property property;
   final VoidCallback? onTap;
   final VoidCallback? onFavoriteChanged;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final bool showActions;
 
   const PropertyCard({
     super.key,
     required this.property,
     this.onTap,
     this.onFavoriteChanged,
+    this.onEdit,
+    this.onDelete,
+    this.showActions = false,
   });
 
   @override
@@ -295,6 +301,50 @@ class _PropertyCardState extends State<PropertyCard> {
                         _buildFeatureTag('Garden'),
                     ],
                   ),
+                  // Action Buttons (if showActions is true)
+                  if (widget.showActions && (widget.onEdit != null || widget.onDelete != null))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (widget.onEdit != null)
+                            GestureDetector(
+                              onTap: widget.onEdit,
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.9),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.edit,
+                                  color: Colors.blue,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          if (widget.onEdit != null && widget.onDelete != null)
+                            const SizedBox(width: 8),
+                          if (widget.onDelete != null)
+                            GestureDetector(
+                              onTap: widget.onDelete,
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.9),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),

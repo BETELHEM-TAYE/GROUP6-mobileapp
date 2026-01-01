@@ -10,6 +10,7 @@ import 'favorites_screen.dart';
 import 'messages_list_screen.dart';
 import 'all_properties_screen.dart';
 import 'appointments_screen.dart';
+import 'my_properties_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -208,12 +209,24 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      _buildActionPill('Add Post', Icons.add),
-                      const SizedBox(width: 12),
-                      _buildActionPill('View Appointments', Icons.calendar_today),
-                    ],
+                  FutureBuilder(
+                    future: _authService.getCurrentUserProfile(),
+                    builder: (context, snapshot) {
+                      final user = snapshot.data;
+                      final isSeller = user?.userRole == 'seller';
+                      
+                      return Row(
+                        children: [
+                          _buildActionPill('Add Post', Icons.add),
+                          const SizedBox(width: 12),
+                          _buildActionPill('View Appointments', Icons.calendar_today),
+                          if (isSeller) ...[
+                            const SizedBox(width: 12),
+                            _buildActionPill('My Properties', Icons.home_work),
+                          ],
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),
@@ -442,6 +455,12 @@ class _HomeScreenState extends State<HomeScreen> {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => const AppointmentsScreen(),
+            ),
+          );
+        } else if (label == 'My Properties') {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const MyPropertiesScreen(),
             ),
           );
         }

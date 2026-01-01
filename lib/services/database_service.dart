@@ -55,6 +55,27 @@ class DatabaseService {
     }
   }
 
+  /// Get properties by landlord ID
+  Future<List<Property>> getPropertiesByLandlord(String landlordId) async {
+    try {
+      final data = await supabase
+          .from('properties_with_avg_rating')
+          .select('*')
+          .eq('landlord_id', landlordId)
+          .order('created_at', ascending: false);
+
+      final properties = (data as List)
+          .map((json) => Property.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      debugPrint("Fetched ${properties.length} properties for landlord $landlordId");
+      return properties;
+    } catch (e) {
+      debugPrint("Error getting properties by landlord: $e");
+      return [];
+    }
+  }
+
   /// Create a new property
   Future<void> createProperty(Property property) async {
     try {
