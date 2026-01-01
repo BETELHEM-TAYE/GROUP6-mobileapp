@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/user.dart';
+import '../services/database_service.dart';
 import '../widgets/form_card.dart';
 import '../widgets/custom_button.dart';
 
@@ -22,20 +23,23 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   static const Color mediumGray = Color(0xFF9E9E9E);
 
   late TextEditingController _nameController;
+  late TextEditingController _phoneController;
   late TextEditingController _dateOfBirthController;
   late TextEditingController _addressController;
   late TextEditingController _aboutMeController;
   String _selectedGender = 'Male';
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.user.name);
+    _phoneController = TextEditingController(text: widget.user.phone);
     _dateOfBirthController = TextEditingController(
-      text: widget.user.dateOfBirth ?? '24/12/2018',
+      text: widget.user.dateOfBirth ?? '',
     );
     _addressController = TextEditingController(
-      text: widget.user.address ?? 'Bahir Dar, Ethiopia',
+      text: widget.user.address ?? '',
     );
     _aboutMeController = TextEditingController(
       text: widget.user.aboutMe ?? '',
@@ -46,6 +50,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _phoneController.dispose();
     _dateOfBirthController.dispose();
     _addressController.dispose();
     _aboutMeController.dispose();
@@ -68,9 +73,51 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     }
   }
 
-  void _handleSave() {
-    // Fake save - just navigate back
-    Navigator.of(context).pop(true);
+  Future<void> _handleSave() async {
+    if (_isSaving) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final updatedUser = User(
+        id: widget.user.id,
+        name: _nameController.text,
+        email: widget.user.email,
+        phone: _phoneController.text,
+        address: _addressController.text.isEmpty ? null : _addressController.text,
+        dateOfBirth: _dateOfBirthController.text.isEmpty ? null : _dateOfBirthController.text,
+        gender: _selectedGender,
+        aboutMe: _aboutMeController.text.isEmpty ? null : _aboutMeController.text,
+        profileImageUrl: widget.user.profileImageUrl,
+        userRole: widget.user.userRole,
+        paymentMethod: widget.user.paymentMethod,
+      );
+
+      await DatabaseService().updateUserProfile(updatedUser);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating profile: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   @override
@@ -164,6 +211,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     label: 'Full name',
                   ),
                   const SizedBox(height: 16),
+                  // Phone number field
+                  _buildTextField(
+                    controller: _phoneController,
+                    label: 'Phone number',
+                    keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 16),
                   // Date of birth field
                   GestureDetector(
                     onTap: () => _selectDate(context),
@@ -225,8 +279,12 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             const SizedBox(height: 32),
             // Save Changes Button
             CustomButton(
-              text: 'Save Changes',
-              onPressed: _handleSave,
+              text: _isSaving ? 'Saving...' : 'Save Changes',
+              onPressed: _isSaving
+                  ? () {}
+                  : () {
+                      _handleSave();
+                    },
               backgroundColor: primaryDark,
               borderRadius: 15,
             ),
@@ -241,10 +299,12 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     required String label,
     Widget? suffixIcon,
     int maxLines = 1,
+    TextInputType? keyboardType,
   }) {
     return TextField(
       controller: controller,
       maxLines: maxLines,
+      keyboardType: keyboardType,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(

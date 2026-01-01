@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
+import '../services/database_service.dart';
 import 'profile_edit_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -17,10 +18,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const Color mediumGray = Color(0xFF9E9E9E);
 
   final _authService = AuthService();
+  final _databaseService = DatabaseService();
   User? _user;
   bool _isLoading = true;
-  bool _obscurePassword = true;
-  bool _twoFactorEnabled = false;
 
   @override
   void initState() {
@@ -183,12 +183,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 IconButton(
                   icon: const Icon(Icons.edit, size: 20),
                   color: primaryDark,
-                  onPressed: () {
-                    Navigator.of(context).push(
+                  onPressed: () async {
+                    final result = await Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (context) => ProfileEditScreen(user: user),
                       ),
                     );
+                    if (result == true) {
+                      _loadUserProfile();
+                    }
                   },
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -272,70 +275,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
             const SizedBox(height: 24),
-            // Password Section
+            // Account Type Section
             _buildSection(
-              icon: Icons.lock_outline,
-              title: 'Password',
+              icon: Icons.account_circle_outlined,
+              title: 'Account Type',
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[300]!),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _obscurePassword ? '***********' : 'password123',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: primaryDark,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                          color: mediumGray,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      '2FA Authentication',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: primaryDark,
-                      ),
-                    ),
-                    Switch(
-                      value: _twoFactorEnabled,
-                      onChanged: (value) {
-                        setState(() {
-                          _twoFactorEnabled = value;
-                        });
-                      },
-                      activeThumbColor: primaryDark,
-                    ),
-                  ],
-                ),
+                _buildRoleSelector(user),
               ],
             ),
             const SizedBox(height: 24),
@@ -344,43 +289,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
               icon: Icons.credit_card,
               title: 'Payment Method',
               children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[300]!),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        '****7382',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: primaryDark,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: primaryDark,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'VISA',
+                GestureDetector(
+                  onTap: () => _showPaymentMethodPicker(user),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          user.paymentMethod ?? 'Select payment method',
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: user.paymentMethod != null
+                                ? primaryDark
+                                : mediumGray,
                           ),
                         ),
-                      ),
-                    ],
+                        const Icon(
+                          Icons.arrow_forward_ios,
+                          size: 16,
+                          color: mediumGray,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -507,6 +444,232 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildRoleSelector(User user) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildRoleOption(
+            'Buyer',
+            Icons.shopping_bag_outlined,
+            user.userRole == 'buyer',
+            () => _handleRoleChange(user, 'buyer'),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildRoleOption(
+            'Seller',
+            Icons.store_outlined,
+            user.userRole == 'seller',
+            () => _handleRoleChange(user, 'seller'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRoleOption(
+    String role,
+    IconData icon,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? primaryDark.withOpacity(0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? primaryDark : Colors.grey[300]!,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? primaryDark : mediumGray,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              role,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                color: isSelected ? primaryDark : mediumGray,
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (isSelected)
+              const Icon(
+                Icons.check_circle,
+                color: primaryDark,
+                size: 20,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleRoleChange(User user, String newRole) async {
+    if (user.userRole == newRole) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Switch Account Type'),
+          content: Text('Switch to ${newRole == 'buyer' ? 'Buyer' : 'Seller'} mode?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      try {
+        final updatedUser = User(
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          address: user.address,
+          dateOfBirth: user.dateOfBirth,
+          gender: user.gender,
+          aboutMe: user.aboutMe,
+          profileImageUrl: user.profileImageUrl,
+          userRole: newRole,
+          paymentMethod: user.paymentMethod,
+        );
+
+        await _databaseService.updateUserProfile(updatedUser);
+        if (mounted) {
+          setState(() {
+            _user = updatedUser;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account type updated successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error updating account type: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _showPaymentMethodPicker(User user) async {
+    final paymentMethods = [
+      'CBE (Commercial Bank of Ethiopia)',
+      'Abyssinia Bank',
+      'Bank of Abyssinia',
+      'Awash Bank',
+      'VISA',
+      'Mastercard',
+      'PayPal',
+    ];
+
+    final selectedMethod = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Select Payment Method',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: primaryDark,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...paymentMethods.map((method) {
+                final isSelected = user.paymentMethod == method;
+                return ListTile(
+                  title: Text(method),
+                  leading: Icon(
+                    isSelected ? Icons.check_circle : Icons.circle_outlined,
+                    color: isSelected ? primaryDark : mediumGray,
+                  ),
+                  onTap: () => Navigator.of(context).pop(method),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selectedMethod != null && selectedMethod != user.paymentMethod) {
+      try {
+        final updatedUser = User(
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          address: user.address,
+          dateOfBirth: user.dateOfBirth,
+          gender: user.gender,
+          aboutMe: user.aboutMe,
+          profileImageUrl: user.profileImageUrl,
+          userRole: user.userRole,
+          paymentMethod: selectedMethod,
+        );
+
+        await _databaseService.updateUserProfile(updatedUser);
+        if (mounted) {
+          setState(() {
+            _user = updatedUser;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Payment method updated successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error updating payment method: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 }
 

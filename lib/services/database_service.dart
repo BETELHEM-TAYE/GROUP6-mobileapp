@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/property.dart';
 import '../models/message.dart';
+import '../models/user.dart' as models;
 
 // Get the global Supabase client
 final supabase = Supabase.instance.client;
@@ -282,6 +283,26 @@ class DatabaseService {
           "Rating added/updated successfully for property $propertyId by user $userId");
     } catch (e) {
       debugPrint("Error adding/updating rating: $e");
+      rethrow;
+    }
+  }
+
+  /// Update user profile
+  Future<void> updateUserProfile(models.User user) async {
+    try {
+      final userMap = user.toJson();
+      // Remove non-updatable fields
+      userMap.remove('id');
+      userMap.remove('created_at');
+      userMap.remove('updated_at');
+
+      await supabase
+          .from('profiles')
+          .update(userMap)
+          .eq('id', user.id);
+      debugPrint("User profile ${user.id} updated successfully!");
+    } catch (e) {
+      debugPrint("Error updating user profile: $e");
       rethrow;
     }
   }
