@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/property.dart';
 import '../models/message.dart';
+import '../models/user.dart' as models;
 
 // Get the global Supabase client
 final supabase = Supabase.instance.client;
@@ -51,6 +52,27 @@ class DatabaseService {
     } catch (e) {
       debugPrint("Error getting property by ID: $e");
       return null;
+    }
+  }
+
+  /// Get properties by landlord ID
+  Future<List<Property>> getPropertiesByLandlord(String landlordId) async {
+    try {
+      final data = await supabase
+          .from('properties_with_avg_rating')
+          .select('*')
+          .eq('landlord_id', landlordId)
+          .order('created_at', ascending: false);
+
+      final properties = (data as List)
+          .map((json) => Property.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      debugPrint("Fetched ${properties.length} properties for landlord $landlordId");
+      return properties;
+    } catch (e) {
+      debugPrint("Error getting properties by landlord: $e");
+      return [];
     }
   }
 
@@ -282,6 +304,184 @@ class DatabaseService {
           "Rating added/updated successfully for property $propertyId by user $userId");
     } catch (e) {
       debugPrint("Error adding/updating rating: $e");
+      rethrow;
+    }
+  }
+
+  /// Update user profile
+  Future<void> updateUserProfile(models.User user) async {
+    try {
+      final userMap = user.toJson();
+      // Remove non-updatable fields
+      userMap.remove('id');
+      userMap.remove('created_at');
+      userMap.remove('updated_at');
+
+      await supabase
+          .from('profiles')
+          .update(userMap)
+          .eq('id', user.id);
+      debugPrint("User profile ${user.id} updated successfully!");
+    } catch (e) {
+      debugPrint("Error updating user profile: $e");
+      rethrow;
+    }
+  }
+
+  /// Add a property to user's favorites
+  Future<void> addFavorite(String userId, String propertyId) async {
+    try {
+      await supabase.from('favorites').insert({
+        'user_id': userId,
+        'property_id': propertyId,
+      });
+      debugPrint("Favorite added successfully for user $userId, property $propertyId");
+    } catch (e) {
+      debugPrint("Error adding favorite: $e");
+      rethrow;
+    }
+  }
+
+  /// Remove a property from user's favorites
+  Future<void> removeFavorite(String userId, String propertyId) async {
+    try {
+      await supabase
+          .from('favorites')
+          .delete()
+          .eq('user_id', userId)
+          .eq('property_id', propertyId);
+      debugPrint("Favorite removed successfully for user $userId, property $propertyId");
+    } catch (e) {
+      debugPrint("Error removing favorite: $e");
+      rethrow;
+    }
+  }
+
+  /// Check if a property is favorited by a user
+  Future<bool> isFavorite(String userId, String propertyId) async {
+    try {
+      final result = await supabase
+          .from('favorites')
+          .select()
+          .eq('user_id', userId)
+          .eq('property_id', propertyId)
+          .maybeSingle();
+      return result != null;
+    } catch (e) {
+      debugPrint("Error checking favorite status: $e");
+      return false;
+    }
+  }
+
+  /// Get all favorite properties for a user
+  Future<List<Property>> getUserFavorites(String userId) async {
+    try {
+      // First, fetch favorite property IDs from the favorites table
+      final favoritesData = await supabase
+          .from('favorites')
+          .select('property_id')
+          .eq('user_id', userId);
+
+      // Extract property IDs
+      final favoriteIds = favoritesData
+          .map((item) => item['property_id'] as String)
+          .toList();
+
+      // If no favorites, return empty list
+      if (favoriteIds.isEmpty) {
+        debugPrint("No favorite properties found for user $userId");
+        return [];
+      }
+
+      // Fetch full property details with ratings from the view
+      final data = await supabase
+          .from('properties_with_avg_rating')
+          .select('*')
+          .inFilter('id', favoriteIds);
+
+      // Map the results to Property objects
+      final properties = data
+          .map((json) => Property.fromJson(json))
+          .toList();
+
+      debugPrint("Fetched ${properties.length} favorite properties for user $userId");
+      return properties;
+    } catch (e) {
+      debugPrint("Error getting user favorites: $e");
+      return [];
+    }
+  }
+
+  /// Get all appointments for a user
+  Future<List<Map<String, dynamic>>> getUserAppointments(String userId) async {
+    try {
+      debugPrint("Getting appointments for user: $userId");
+
+      final appointments = await supabase
+          .from('appointments')
+          .select('*, property:properties(*)')
+          .eq('user_id', userId)
+          .order('appointment_date', ascending: false);
+
+      debugPrint("Fetched ${appointments.length} appointments");
+      return List<Map<String, dynamic>>.from(appointments);
+    } catch (e) {
+      debugPrint("Error getting user appointments: $e");
+      return [];
+    }
+  }
+
+  /// Create a new appointment
+  Future<String> createAppointment(Map<String, dynamic> appointmentData) async {
+    try {
+      final response = await supabase
+          .from('appointments')
+          .insert(appointmentData)
+          .select('id')
+          .single();
+
+      final appointmentId = response['id'] as String;
+      debugPrint("Appointment created successfully with ID: $appointmentId");
+      return appointmentId;
+    } catch (e) {
+      debugPrint("Error creating appointment: $e");
+      rethrow;
+    }
+  }
+
+  /// Update appointment status
+  Future<void> updateAppointmentStatus(String appointmentId, String status) async {
+    try {
+      if (!['pending', 'confirmed', 'cancelled', 'completed'].contains(status)) {
+        throw Exception("Invalid status: $status");
+      }
+
+      await supabase
+          .from('appointments')
+          .update({
+            'status': status,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', appointmentId);
+
+      debugPrint("Appointment $appointmentId status updated to $status");
+    } catch (e) {
+      debugPrint("Error updating appointment status: $e");
+      rethrow;
+    }
+  }
+
+  /// Delete an appointment
+  Future<void> deleteAppointment(String appointmentId) async {
+    try {
+      await supabase
+          .from('appointments')
+          .delete()
+          .eq('id', appointmentId);
+
+      debugPrint("Appointment $appointmentId deleted successfully");
+    } catch (e) {
+      debugPrint("Error deleting appointment: $e");
       rethrow;
     }
   }

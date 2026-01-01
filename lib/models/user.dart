@@ -8,6 +8,8 @@ class User {
   final String? gender;
   final String? aboutMe;
   final String? profileImageUrl;
+  final String userRole;
+  final String? paymentMethod;
 
   User({
     required this.id,
@@ -19,6 +21,8 @@ class User {
     this.gender,
     this.aboutMe,
     this.profileImageUrl,
+    this.userRole = 'buyer',
+    this.paymentMethod,
   });
 
   // Create User from Supabase profile JSON
@@ -33,6 +37,8 @@ class User {
       gender: json['gender'] as String?,
       aboutMe: json['about_me'] as String?,
       profileImageUrl: json['profile_image_url'] as String?,
+      userRole: json['user_role'] as String? ?? 'buyer',
+      paymentMethod: json['payment_method'] as String?,
     );
   }
 
@@ -48,6 +54,8 @@ class User {
       'gender': gender,
       'about_me': aboutMe,
       'profile_image_url': profileImageUrl,
+      'user_role': userRole,
+      'payment_method': paymentMethod,
     };
   }
 
@@ -71,6 +79,8 @@ class User {
       gender: 'Male',
       aboutMe: '',
       profileImageUrl: null,
+      userRole: 'buyer',
+      paymentMethod: 'VISA',
     );
   }
 }

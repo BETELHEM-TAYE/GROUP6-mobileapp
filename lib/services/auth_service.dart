@@ -15,6 +15,7 @@ class AuthService {
     required String password,
     required String name,
     String? phone,
+    String userRole = 'buyer',
   }) async {
     try {
       final authResponse = await supabase.auth.signUp(
@@ -26,6 +27,7 @@ class AuthService {
           'email': email,
           'name': name,
           'phone_number': phone ?? '',
+          'user_role': userRole,
         },
       );
 

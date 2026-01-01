@@ -1,25 +1,146 @@
 import 'package:flutter/material.dart';
 import '../models/property.dart';
+import '../services/database_service.dart';
+import '../services/auth_service.dart';
 
-class PropertyCard extends StatelessWidget {
+class PropertyCard extends StatefulWidget {
   final Property property;
   final VoidCallback? onTap;
+  final VoidCallback? onFavoriteChanged;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final bool showActions;
 
   const PropertyCard({
     super.key,
     required this.property,
     this.onTap,
+    this.onFavoriteChanged,
+    this.onEdit,
+    this.onDelete,
+    this.showActions = false,
   });
 
+  @override
+  State<PropertyCard> createState() => _PropertyCardState();
+}
+
+class _PropertyCardState extends State<PropertyCard> {
   // Color palette
   static const Color primaryDark = Color(0xFF2C2C2C);
   static const Color lightGray = Color(0xFFF5F5F5);
   static const Color mediumGray = Color(0xFF9E9E9E);
 
+  // Services
+  final _databaseService = DatabaseService();
+  final _authService = AuthService();
+
+  // State
+  bool _isFavorite = false;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFavoriteStatus();
+  }
+
+  Future<void> _checkFavoriteStatus() async {
+    try {
+      final currentUser = _authService.getCurrentUser();
+      if (currentUser == null) {
+        return;
+      }
+
+      final isFav = await _databaseService.isFavorite(
+        currentUser.id,
+        widget.property.id,
+      );
+      if (mounted) {
+        setState(() {
+          _isFavorite = isFav;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error checking favorite status: $e");
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final currentUser = _authService.getCurrentUser();
+      if (currentUser == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please sign in to add favorites'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (_isFavorite) {
+        await _databaseService.removeFavorite(
+          currentUser.id,
+          widget.property.id,
+        );
+      } else {
+        await _databaseService.addFavorite(
+          currentUser.id,
+          widget.property.id,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _isFavorite = !_isFavorite;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _isFavorite
+                  ? 'Added to favorites'
+                  : 'Removed from favorites',
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 1),
+          ),
+        );
+
+        // Call callback if provided
+        widget.onFavoriteChanged?.call();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update favorite: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
@@ -44,7 +165,7 @@ class PropertyCard extends StatelessWidget {
                     top: Radius.circular(15),
                   ),
                   child: Image.network(
-                    property.imageUrl,
+                    widget.property.imageUrl,
                     height: 200,
                     width: double.infinity,
                     fit: BoxFit.cover,
@@ -59,6 +180,34 @@ class PropertyCard extends StatelessWidget {
                         ),
                       );
                     },
+                  ),
+                ),
+                // Heart icon
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: GestureDetector(
+                    onTap: _toggleFavorite,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.9),
+                        shape: BoxShape.circle,
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Icon(
+                              _isFavorite ? Icons.favorite : Icons.favorite_border,
+                              size: 20,
+                              color: _isFavorite ? Colors.red : primaryDark,
+                            ),
+                    ),
                   ),
                 ),
                 // "For Sale" badge
@@ -84,23 +233,6 @@ class PropertyCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Heart icon
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.9),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.favorite_border,
-                      size: 20,
-                      color: primaryDark,
-                    ),
-                  ),
-                ),
               ],
             ),
             // Property Details
@@ -111,7 +243,7 @@ class PropertyCard extends StatelessWidget {
                 children: [
                   // Property Name
                   Text(
-                    property.name,
+                    widget.property.name,
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -130,7 +262,7 @@ class PropertyCard extends StatelessWidget {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          property.address,
+                          widget.property.address,
                           style: TextStyle(
                             fontSize: 14,
                             color: mediumGray,
@@ -149,7 +281,7 @@ class PropertyCard extends StatelessWidget {
                   const SizedBox(height: 12),
                   // Price
                   Text(
-                    property.formattedPrice,
+                    widget.property.formattedPrice,
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -162,13 +294,57 @@ class PropertyCard extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      _buildFeatureTag('${property.bedrooms} bed'),
-                      if (property.hasParking)
+                      _buildFeatureTag('${widget.property.bedrooms} bed'),
+                      if (widget.property.hasParking)
                         _buildFeatureTag('2 Car'),
-                      if (property.hasGarden)
+                      if (widget.property.hasGarden)
                         _buildFeatureTag('Garden'),
                     ],
                   ),
+                  // Action Buttons (if showActions is true)
+                  if (widget.showActions && (widget.onEdit != null || widget.onDelete != null))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (widget.onEdit != null)
+                            GestureDetector(
+                              onTap: widget.onEdit,
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.9),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.edit,
+                                  color: Colors.blue,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          if (widget.onEdit != null && widget.onDelete != null)
+                            const SizedBox(width: 8),
+                          if (widget.onDelete != null)
+                            GestureDetector(
+                              onTap: widget.onDelete,
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.9),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),

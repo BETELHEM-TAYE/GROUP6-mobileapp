@@ -73,6 +73,39 @@ class StorageService {
     }
   }
 
+  /// Upload profile image to Supabase Storage
+  /// Returns the public URL of the uploaded file
+  Future<String> uploadProfileImage({
+    required Uint8List bytes,
+    required String fileName,
+    required String userId,
+  }) async {
+    try {
+      final String filePath = '$userId/$fileName';
+
+      await supabase.storage
+          .from('profile_images')
+          .uploadBinary(
+            filePath,
+            bytes,
+            fileOptions: FileOptions(
+              cacheControl: '3600',
+              upsert: true,
+              contentType: _getContentType(p.extension(fileName)),
+            ),
+          );
+
+      final String publicUrl =
+          supabase.storage.from('profile_images').getPublicUrl(filePath);
+
+      debugPrint("Profile image uploaded successfully: $publicUrl");
+      return publicUrl;
+    } catch (e) {
+      debugPrint("Error uploading profile image: $e");
+      rethrow;
+    }
+  }
+
   /// Delete image from storage
   Future<void> deleteImage({
     required String bucket,

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
+import '../services/database_service.dart';
 import 'profile_edit_screen.dart';
+import 'my_properties_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -17,10 +19,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const Color mediumGray = Color(0xFF9E9E9E);
 
   final _authService = AuthService();
+  final _databaseService = DatabaseService();
   User? _user;
   bool _isLoading = true;
-  bool _obscurePassword = true;
-  bool _twoFactorEnabled = false;
 
   @override
   void initState() {
@@ -183,12 +184,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 IconButton(
                   icon: const Icon(Icons.edit, size: 20),
                   color: primaryDark,
-                  onPressed: () {
-                    Navigator.of(context).push(
+                  onPressed: () async {
+                    final result = await Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (context) => ProfileEditScreen(user: user),
                       ),
                     );
+                    if (result == true) {
+                      _loadUserProfile();
+                    }
                   },
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -206,50 +210,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 24),
             // Action Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _handleLogout,
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: primaryDark),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                    ),
-                    child: const Text(
-                      'Log Out',
-                      style: TextStyle(
-                        color: primaryDark,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: _handleLogout,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: primaryDark),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      // TODO: Add account functionality
-                    },
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: primaryDark),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                    ),
-                    child: const Text(
-                      '+ Add account',
-                      style: TextStyle(
-                        color: primaryDark,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                child: const Text(
+                  'Log Out',
+                  style: TextStyle(
+                    color: primaryDark,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-              ],
+              ),
             ),
             const SizedBox(height: 32),
             // Contact Section
@@ -272,119 +251,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
             const SizedBox(height: 24),
-            // Password Section
+            // Account Type Section
             _buildSection(
-              icon: Icons.lock_outline,
-              title: 'Password',
+              icon: Icons.account_circle_outlined,
+              title: 'Account Type',
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[300]!),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _obscurePassword ? '***********' : 'password123',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: primaryDark,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                          color: mediumGray,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      '2FA Authentication',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: primaryDark,
-                      ),
-                    ),
-                    Switch(
-                      value: _twoFactorEnabled,
-                      onChanged: (value) {
-                        setState(() {
-                          _twoFactorEnabled = value;
-                        });
-                      },
-                      activeThumbColor: primaryDark,
-                    ),
-                  ],
-                ),
+                _buildRoleSelector(user),
               ],
             ),
-            const SizedBox(height: 24),
-            // Payment Method Section
-            _buildSection(
-              icon: Icons.credit_card,
-              title: 'Payment Method',
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[300]!),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        '****7382',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: primaryDark,
+            // My Properties Section (for sellers)
+            if (user.userRole == 'seller') ...[
+              const SizedBox(height: 24),
+              _buildSection(
+                icon: Icons.home_work,
+                title: 'Property Management',
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const MyPropertiesScreen(),
                         ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey[300]!),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: primaryDark,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'VISA',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Manage My Properties',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: primaryDark,
+                            ),
                           ),
-                        ),
+                          const Icon(
+                            Icons.arrow_forward_ios,
+                            size: 16,
+                            color: mediumGray,
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
             const SizedBox(height: 100), // Space for bottom nav
           ],
         ),
@@ -400,10 +319,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
         child: BottomNavigationBar(
-          currentIndex: 4, // Profile tab selected
+          currentIndex: 3, // Profile tab selected
           onTap: (index) {
             // Handle navigation - for now just update state
-            if (index != 4) {
+            if (index != 3) {
               Navigator.of(context).pop();
             }
           },
@@ -417,10 +336,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             BottomNavigationBarItem(
               icon: Icon(Icons.grid_view),
               label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.explore_outlined),
-              label: 'Explore',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.favorite_border),
@@ -508,5 +423,147 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  Widget _buildRoleSelector(User user) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildRoleOption(
+            'Buyer',
+            Icons.shopping_bag_outlined,
+            user.userRole == 'buyer',
+            () => _handleRoleChange(user, 'buyer'),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildRoleOption(
+            'Seller',
+            Icons.store_outlined,
+            user.userRole == 'seller',
+            () => _handleRoleChange(user, 'seller'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRoleOption(
+    String role,
+    IconData icon,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? primaryDark.withOpacity(0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? primaryDark : Colors.grey[300]!,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? primaryDark : mediumGray,
+              size: 20,
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                role,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  color: isSelected ? primaryDark : mediumGray,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (isSelected) ...[
+              const SizedBox(width: 6),
+              const Icon(
+                Icons.check_circle,
+                color: primaryDark,
+                size: 20,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleRoleChange(User user, String newRole) async {
+    if (user.userRole == newRole) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Switch Account Type'),
+          content: Text('Switch to ${newRole == 'buyer' ? 'Buyer' : 'Seller'} mode?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      try {
+        final updatedUser = User(
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          address: user.address,
+          dateOfBirth: user.dateOfBirth,
+          gender: user.gender,
+          aboutMe: user.aboutMe,
+          profileImageUrl: user.profileImageUrl,
+          userRole: newRole,
+          paymentMethod: user.paymentMethod,
+        );
+
+        await _databaseService.updateUserProfile(updatedUser);
+        if (mounted) {
+          setState(() {
+            _user = updatedUser;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account type updated successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error updating account type: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
 }
 

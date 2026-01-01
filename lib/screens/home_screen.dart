@@ -6,6 +6,11 @@ import '../widgets/property_card.dart';
 import 'property_detail_screen.dart';
 import 'profile_screen.dart';
 import 'new_post_screen.dart';
+import 'favorites_screen.dart';
+import 'messages_list_screen.dart';
+import 'all_properties_screen.dart';
+import 'appointments_screen.dart';
+import 'my_properties_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,7 +31,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // State
   final TextEditingController _searchController = TextEditingController();
-  String _selectedFilter = 'All';
   int _selectedNavIndex = 0;
   List<Property> _allProperties = [];
   List<Property> _filteredProperties = [];
@@ -103,13 +107,6 @@ class _HomeScreenState extends State<HomeScreen> {
         properties = _allProperties;
       }
 
-      // Apply local filter
-      if (_selectedFilter != 'All') {
-        properties = properties.where((property) {
-          return (_selectedFilter == 'House' && property.hasGarden) ||
-              (_selectedFilter == 'Apartment' && !property.hasGarden);
-        }).toList();
-      }
 
       if (mounted) {
         setState(() {
@@ -127,12 +124,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _onFilterSelected(String filter) {
-    setState(() {
-      _selectedFilter = filter;
-      _applyFilters();
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -155,25 +146,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: primaryDark,
                     ),
                   ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, color: primaryDark),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: mediumGray.withOpacity(0.3),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.person,
-                          color: primaryDark,
-                        ),
-                      ),
-                    ],
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, color: primaryDark),
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
               ),
@@ -184,7 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
-                  hintText: 'Q Search Properties...',
+                  hintText: 'Search Properties...',
                   hintStyle: TextStyle(color: mediumGray),
                   prefixIcon: Icon(Icons.search, color: mediumGray),
                   suffixIcon: IconButton(
@@ -205,29 +180,32 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            // Filter Pills
+            // Action Pills
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      _buildFilterPill('All', _selectedFilter == 'All'),
-                      const SizedBox(width: 12),
-                      _buildFilterPill('House', _selectedFilter == 'House'),
-                      const SizedBox(width: 12),
-                      _buildFilterPill('Apartment', _selectedFilter == 'Apartment'),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      _buildActionPill('Add Post', Icons.add),
-                      const SizedBox(width: 12),
-                      _buildActionPill('View Appointments', Icons.calendar_today),
-                    ],
-                  ),
-                ],
+              child: FutureBuilder(
+                future: _authService.getCurrentUserProfile(),
+                builder: (context, snapshot) {
+                  final user = snapshot.data;
+                  final isSeller = user?.userRole == 'seller';
+                  
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        if (isSeller) ...[
+                          _buildActionPill('Add Post', Icons.add),
+                          const SizedBox(width: 12),
+                        ],
+                        _buildActionPill('View Appointments', Icons.calendar_today),
+                        if (isSeller) ...[
+                          const SizedBox(width: 12),
+                          _buildActionPill('My Properties', Icons.home_work),
+                        ],
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
             const SizedBox(height: 16),
@@ -246,7 +224,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   TextButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const AllPropertiesScreen(),
+                        ),
+                      );
+                    },
                     child: const Text(
                       'View All',
                       style: TextStyle(
@@ -351,7 +335,21 @@ class _HomeScreenState extends State<HomeScreen> {
         child: BottomNavigationBar(
           currentIndex: _selectedNavIndex,
           onTap: (index) {
-            if (index == 4) {
+            if (index == 1) {
+              // Navigate to Favorites screen
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const FavoritesScreen(),
+                ),
+              );
+            } else if (index == 2) {
+              // Navigate to Messages screen
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const MessagesListScreen(),
+                ),
+              );
+            } else if (index == 3) {
               // Navigate to Profile screen
               Navigator.of(context).push(
                 MaterialPageRoute(
@@ -380,10 +378,6 @@ class _HomeScreenState extends State<HomeScreen> {
               label: 'Favorites',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.location_on_outlined),
-              label: 'Location',
-            ),
-            BottomNavigationBarItem(
               icon: Icon(Icons.message_outlined),
               label: 'Messages',
             ),
@@ -392,30 +386,6 @@ class _HomeScreenState extends State<HomeScreen> {
               label: 'Profile',
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterPill(String label, bool isSelected) {
-    return GestureDetector(
-      onTap: () => _onFilterSelected(label),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? primaryDark : Colors.white,
-          borderRadius: BorderRadius.circular(25),
-          border: Border.all(
-            color: isSelected ? primaryDark : mediumGray.withOpacity(0.3),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : primaryDark,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
         ),
       ),
     );
@@ -431,11 +401,21 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           );
         } else if (label == 'View Appointments') {
-          // TODO: Navigate to appointments screen when implemented
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const AppointmentsScreen(),
+            ),
+          );
+        } else if (label == 'My Properties') {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const MyPropertiesScreen(),
+            ),
+          );
         }
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(25),

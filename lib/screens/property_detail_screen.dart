@@ -32,6 +32,105 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
   bool _isDescriptionExpanded = false;
   int _currentImageIndex = 0;
   bool _isLoadingChat = false;
+  bool _isFavorite = false;
+  bool _isFavoriteLoading = false;
+  bool _favoriteChanged = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFavoriteStatus();
+  }
+
+  Future<void> _checkFavoriteStatus() async {
+    try {
+      final currentUser = _authService.getCurrentUser();
+      if (currentUser == null) {
+        return;
+      }
+
+      final isFav = await _databaseService.isFavorite(
+        currentUser.id,
+        widget.property.id,
+      );
+      if (mounted) {
+        setState(() {
+          _isFavorite = isFav;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error checking favorite status: $e");
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (_isFavoriteLoading) return;
+
+    setState(() {
+      _isFavoriteLoading = true;
+    });
+
+    try {
+      final currentUser = _authService.getCurrentUser();
+      if (currentUser == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please sign in to add favorites'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (_isFavorite) {
+        await _databaseService.removeFavorite(
+          currentUser.id,
+          widget.property.id,
+        );
+      } else {
+        await _databaseService.addFavorite(
+          currentUser.id,
+          widget.property.id,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _isFavorite = !_isFavorite;
+          _favoriteChanged = true;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _isFavorite
+                  ? 'Added to favorites'
+                  : 'Removed from favorites',
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update favorite: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFavoriteLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +143,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: primaryDark),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.of(context).pop(_favoriteChanged),
         ),
         title: const Text(
           'Property Detail',
@@ -55,17 +154,25 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
         ),
         centerTitle: true,
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: lightGray,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.more_vert,
-              color: primaryDark,
+          GestureDetector(
+            onTap: _toggleFavorite,
+            child: Container(
+              margin: const EdgeInsets.only(right: 16),
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: lightGray,
+                shape: BoxShape.circle,
+              ),
+              child: _isFavoriteLoading
+                  ? const Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      _isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: _isFavorite ? Colors.red : primaryDark,
+                    ),
             ),
           ),
         ],

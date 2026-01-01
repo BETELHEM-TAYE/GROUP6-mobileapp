@@ -1,5 +1,10 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/user.dart';
+import '../services/database_service.dart';
+import '../services/storage_service.dart';
 import '../widgets/form_card.dart';
 import '../widgets/custom_button.dart';
 
@@ -22,20 +27,26 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   static const Color mediumGray = Color(0xFF9E9E9E);
 
   late TextEditingController _nameController;
+  late TextEditingController _phoneController;
   late TextEditingController _dateOfBirthController;
   late TextEditingController _addressController;
   late TextEditingController _aboutMeController;
   String _selectedGender = 'Male';
+  bool _isSaving = false;
+  File? _selectedProfileImage;
+  bool _isUploadingImage = false;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.user.name);
+    _phoneController = TextEditingController(text: widget.user.phone);
     _dateOfBirthController = TextEditingController(
-      text: widget.user.dateOfBirth ?? '24/12/2018',
+      text: widget.user.dateOfBirth ?? '',
     );
     _addressController = TextEditingController(
-      text: widget.user.address ?? 'Bahir Dar, Ethiopia',
+      text: widget.user.address ?? '',
     );
     _aboutMeController = TextEditingController(
       text: widget.user.aboutMe ?? '',
@@ -46,6 +57,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _phoneController.dispose();
     _dateOfBirthController.dispose();
     _addressController.dispose();
     _aboutMeController.dispose();
@@ -68,9 +80,123 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     }
   }
 
-  void _handleSave() {
-    // Fake save - just navigate back
-    Navigator.of(context).pop(true);
+  Future<void> _pickProfileImage() async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+      );
+      if (pickedFile != null) {
+        setState(() {
+          _selectedProfileImage = File(pickedFile.path);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking image: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<String?> _uploadProfileImage() async {
+    if (_selectedProfileImage == null) return null;
+
+    setState(() => _isUploadingImage = true);
+
+    try {
+      final Uint8List bytes = await _selectedProfileImage!.readAsBytes();
+      final String fileName =
+          'profile_${widget.user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final String publicUrl = await StorageService().uploadProfileImage(
+        bytes: bytes,
+        fileName: fileName,
+        userId: widget.user.id,
+      );
+      return publicUrl;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading image: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return null;
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingImage = false);
+      }
+    }
+  }
+
+  Future<void> _handleSave() async {
+    if (_isSaving || _isUploadingImage) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      String? newImageUrl;
+      if (_selectedProfileImage != null) {
+        newImageUrl = await _uploadProfileImage();
+        if (newImageUrl == null) {
+          // Image upload failed, show error and return early
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Error uploading image. Please try again.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+            setState(() => _isSaving = false);
+          }
+          return;
+        }
+      }
+
+      final updatedUser = User(
+        id: widget.user.id,
+        name: _nameController.text,
+        email: widget.user.email,
+        phone: _phoneController.text,
+        address: _addressController.text.isEmpty ? null : _addressController.text,
+        dateOfBirth: _dateOfBirthController.text.isEmpty ? null : _dateOfBirthController.text,
+        gender: _selectedGender,
+        aboutMe: _aboutMeController.text.isEmpty ? null : _aboutMeController.text,
+        profileImageUrl: newImageUrl ?? widget.user.profileImageUrl,
+        userRole: widget.user.userRole,
+        paymentMethod: widget.user.paymentMethod,
+      );
+
+      await DatabaseService().updateUserProfile(updatedUser);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating profile: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   @override
@@ -118,37 +244,65 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       shape: BoxShape.circle,
                       color: Colors.grey[300],
                     ),
-                    child: widget.user.profileImageUrl != null
+                    child: _selectedProfileImage != null
                         ? ClipOval(
-                            child: Image.network(
-                              widget.user.profileImageUrl!,
+                            child: Image.file(
+                              _selectedProfileImage!,
                               fit: BoxFit.cover,
+                              width: 100,
+                              height: 100,
                             ),
                           )
-                        : const Icon(
-                            Icons.person,
-                            size: 50,
-                            color: mediumGray,
-                          ),
+                        : widget.user.profileImageUrl != null
+                            ? ClipOval(
+                                child: Image.network(
+                                  widget.user.profileImageUrl!,
+                                  fit: BoxFit.cover,
+                                  width: 100,
+                                  height: 100,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.person,
+                                size: 50,
+                                color: mediumGray,
+                              ),
                   ),
                   Positioned(
                     bottom: 0,
                     right: 0,
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: primaryDark,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: const Icon(
-                        Icons.camera_alt,
-                        size: 16,
-                        color: Colors.white,
+                    child: GestureDetector(
+                      onTap: _pickProfileImage,
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: primaryDark,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: const Icon(
+                          Icons.camera_alt,
+                          size: 16,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
+                  if (_isUploadingImage)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.black.withOpacity(0.5),
+                        ),
+                        child: const Center(
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -162,6 +316,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                   _buildTextField(
                     controller: _nameController,
                     label: 'Full name',
+                  ),
+                  const SizedBox(height: 16),
+                  // Phone number field
+                  _buildTextField(
+                    controller: _phoneController,
+                    label: 'Phone number',
+                    keyboardType: TextInputType.phone,
                   ),
                   const SizedBox(height: 16),
                   // Date of birth field
@@ -197,7 +358,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                           Icons.male,
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: _buildGenderRadio(
                           'Female',
@@ -225,8 +386,16 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             const SizedBox(height: 32),
             // Save Changes Button
             CustomButton(
-              text: 'Save Changes',
-              onPressed: _handleSave,
+              text: _isUploadingImage
+                  ? 'Uploading...'
+                  : _isSaving
+                      ? 'Saving...'
+                      : 'Save Changes',
+              onPressed: (_isSaving || _isUploadingImage)
+                  ? () {}
+                  : () {
+                      _handleSave();
+                    },
               backgroundColor: primaryDark,
               borderRadius: 15,
             ),
@@ -241,10 +410,12 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     required String label,
     Widget? suffixIcon,
     int maxLines = 1,
+    TextInputType? keyboardType,
   }) {
     return TextField(
       controller: controller,
       maxLines: maxLines,
+      keyboardType: keyboardType,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(
@@ -279,7 +450,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         });
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
         decoration: BoxDecoration(
           color: isSelected ? primaryDark.withOpacity(0.1) : Colors.white,
           borderRadius: BorderRadius.circular(8),
@@ -294,9 +465,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             Icon(
               icon,
               color: isSelected ? primaryDark : mediumGray,
-              size: 20,
+              size: 18,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Text(
               gender,
               style: TextStyle(
@@ -305,12 +476,12 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 color: isSelected ? primaryDark : mediumGray,
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             if (isSelected)
               const Icon(
                 Icons.check_circle,
                 color: primaryDark,
-                size: 20,
+                size: 18,
               ),
           ],
         ),
