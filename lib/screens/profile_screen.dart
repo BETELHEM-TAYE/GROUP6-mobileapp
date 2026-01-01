@@ -383,10 +383,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
         child: BottomNavigationBar(
-          currentIndex: 4, // Profile tab selected
+          currentIndex: 3, // Profile tab selected
           onTap: (index) {
             // Handle navigation - for now just update state
-            if (index != 4) {
+            if (index != 3) {
               Navigator.of(context).pop();
             }
           },
@@ -400,10 +400,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             BottomNavigationBarItem(
               icon: Icon(Icons.grid_view),
               label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.explore_outlined),
-              label: 'Explore',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.favorite_border),

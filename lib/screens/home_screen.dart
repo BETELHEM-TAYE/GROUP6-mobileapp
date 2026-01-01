@@ -31,7 +31,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // State
   final TextEditingController _searchController = TextEditingController();
-  String _selectedFilter = 'All';
   int _selectedNavIndex = 0;
   List<Property> _allProperties = [];
   List<Property> _filteredProperties = [];
@@ -108,13 +107,6 @@ class _HomeScreenState extends State<HomeScreen> {
         properties = _allProperties;
       }
 
-      // Apply local filter
-      if (_selectedFilter != 'All') {
-        properties = properties.where((property) {
-          return (_selectedFilter == 'House' && property.hasGarden) ||
-              (_selectedFilter == 'Apartment' && !property.hasGarden);
-        }).toList();
-      }
 
       if (mounted) {
         setState(() {
@@ -132,12 +124,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _onFilterSelected(String filter) {
-    setState(() {
-      _selectedFilter = filter;
-      _applyFilters();
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -194,41 +180,32 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            // Filter Pills
+            // Action Pills
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      _buildFilterPill('All', _selectedFilter == 'All'),
-                      const SizedBox(width: 12),
-                      _buildFilterPill('House', _selectedFilter == 'House'),
-                      const SizedBox(width: 12),
-                      _buildFilterPill('Apartment', _selectedFilter == 'Apartment'),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  FutureBuilder(
-                    future: _authService.getCurrentUserProfile(),
-                    builder: (context, snapshot) {
-                      final user = snapshot.data;
-                      final isSeller = user?.userRole == 'seller';
-                      
-                      return Row(
-                        children: [
+              child: FutureBuilder(
+                future: _authService.getCurrentUserProfile(),
+                builder: (context, snapshot) {
+                  final user = snapshot.data;
+                  final isSeller = user?.userRole == 'seller';
+                  
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        if (isSeller) ...[
                           _buildActionPill('Add Post', Icons.add),
                           const SizedBox(width: 12),
-                          _buildActionPill('View Appointments', Icons.calendar_today),
-                          if (isSeller) ...[
-                            const SizedBox(width: 12),
-                            _buildActionPill('My Properties', Icons.home_work),
-                          ],
                         ],
-                      );
-                    },
-                  ),
-                ],
+                        _buildActionPill('View Appointments', Icons.calendar_today),
+                        if (isSeller) ...[
+                          const SizedBox(width: 12),
+                          _buildActionPill('My Properties', Icons.home_work),
+                        ],
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
             const SizedBox(height: 16),
@@ -365,14 +342,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   builder: (context) => const FavoritesScreen(),
                 ),
               );
-            } else if (index == 3) {
+            } else if (index == 2) {
               // Navigate to Messages screen
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => const MessagesListScreen(),
                 ),
               );
-            } else if (index == 4) {
+            } else if (index == 3) {
               // Navigate to Profile screen
               Navigator.of(context).push(
                 MaterialPageRoute(
@@ -401,10 +378,6 @@ class _HomeScreenState extends State<HomeScreen> {
               label: 'Favorites',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.location_on_outlined),
-              label: 'Location',
-            ),
-            BottomNavigationBarItem(
               icon: Icon(Icons.message_outlined),
               label: 'Messages',
             ),
@@ -413,30 +386,6 @@ class _HomeScreenState extends State<HomeScreen> {
               label: 'Profile',
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterPill(String label, bool isSelected) {
-    return GestureDetector(
-      onTap: () => _onFilterSelected(label),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? primaryDark : Colors.white,
-          borderRadius: BorderRadius.circular(25),
-          border: Border.all(
-            color: isSelected ? primaryDark : mediumGray.withOpacity(0.3),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : primaryDark,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
         ),
       ),
     );
@@ -466,7 +415,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(25),
