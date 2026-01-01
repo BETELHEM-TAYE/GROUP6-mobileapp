@@ -390,5 +390,79 @@ class DatabaseService {
       return [];
     }
   }
+
+  /// Get all appointments for a user
+  Future<List<Map<String, dynamic>>> getUserAppointments(String userId) async {
+    try {
+      debugPrint("Getting appointments for user: $userId");
+
+      final appointments = await supabase
+          .from('appointments')
+          .select('*, property:properties(*)')
+          .eq('user_id', userId)
+          .order('appointment_date', ascending: false);
+
+      debugPrint("Fetched ${appointments.length} appointments");
+      return List<Map<String, dynamic>>.from(appointments);
+    } catch (e) {
+      debugPrint("Error getting user appointments: $e");
+      return [];
+    }
+  }
+
+  /// Create a new appointment
+  Future<String> createAppointment(Map<String, dynamic> appointmentData) async {
+    try {
+      final response = await supabase
+          .from('appointments')
+          .insert(appointmentData)
+          .select('id')
+          .single();
+
+      final appointmentId = response['id'] as String;
+      debugPrint("Appointment created successfully with ID: $appointmentId");
+      return appointmentId;
+    } catch (e) {
+      debugPrint("Error creating appointment: $e");
+      rethrow;
+    }
+  }
+
+  /// Update appointment status
+  Future<void> updateAppointmentStatus(String appointmentId, String status) async {
+    try {
+      if (!['pending', 'confirmed', 'cancelled', 'completed'].contains(status)) {
+        throw Exception("Invalid status: $status");
+      }
+
+      await supabase
+          .from('appointments')
+          .update({
+            'status': status,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', appointmentId);
+
+      debugPrint("Appointment $appointmentId status updated to $status");
+    } catch (e) {
+      debugPrint("Error updating appointment status: $e");
+      rethrow;
+    }
+  }
+
+  /// Delete an appointment
+  Future<void> deleteAppointment(String appointmentId) async {
+    try {
+      await supabase
+          .from('appointments')
+          .delete()
+          .eq('id', appointmentId);
+
+      debugPrint("Appointment $appointmentId deleted successfully");
+    } catch (e) {
+      debugPrint("Error deleting appointment: $e");
+      rethrow;
+    }
+  }
 }
 

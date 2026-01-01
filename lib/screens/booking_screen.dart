@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/property.dart';
+import '../services/database_service.dart';
+import '../services/auth_service.dart';
 import 'book_completion_screen.dart';
 
 class BookingScreen extends StatefulWidget {
@@ -24,6 +26,11 @@ class _BookingScreenState extends State<BookingScreen> {
   String? _selectedPaymentMethod;
   DateTime? _selectedDate;
   final TextEditingController _dateController = TextEditingController();
+
+  // Services
+  final _databaseService = DatabaseService();
+  final _authService = AuthService();
+  bool _isCreatingAppointment = false;
 
   // Price breakdown (based on wireframe)
   double get basePrice => widget.property.price * 0.85; // ETB 624,750
@@ -72,7 +79,7 @@ class _BookingScreenState extends State<BookingScreen> {
     return ref.toString();
   }
 
-  void _handleConfirmBooking() {
+  Future<void> _handleConfirmBooking() async {
     if (_selectedDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -92,20 +99,64 @@ class _BookingScreenState extends State<BookingScreen> {
       return;
     }
 
-    // Generate booking reference and date
-    final bookingReference = _generateBookingReference();
-    final bookingDate = DateFormat('dd/MM/yy').format(_selectedDate!);
+    if (_isCreatingAppointment) return;
 
-    // Navigate to book completion screen
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => BookCompletionScreen(
-          property: widget.property,
-          bookingReference: bookingReference,
-          bookingDate: bookingDate,
-        ),
-      ),
-    );
+    setState(() {
+      _isCreatingAppointment = true;
+    });
+
+    try {
+      final currentUser = _authService.getCurrentUser();
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Generate booking reference
+      final bookingReference = _generateBookingReference();
+
+      // Create appointment data
+      final appointmentData = {
+        'user_id': currentUser.id,
+        'property_id': widget.property.id,
+        'landlord_id': widget.property.landlordId,
+        'appointment_date': _selectedDate!.toIso8601String(),
+        'booking_reference': bookingReference,
+        'status': 'pending',
+        'notes': 'Payment method: $_selectedPaymentMethod',
+      };
+
+      // Create appointment in database
+      await _databaseService.createAppointment(appointmentData);
+
+      // Generate formatted date for display
+      final bookingDate = DateFormat('dd/MM/yy').format(_selectedDate!);
+
+      if (mounted) {
+        // Navigate to book completion screen
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => BookCompletionScreen(
+              property: widget.property,
+              bookingReference: bookingReference,
+              bookingDate: bookingDate,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error creating appointment: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create appointment: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _isCreatingAppointment = false;
+        });
+      }
+    }
   }
 
   @override
@@ -315,7 +366,7 @@ class _BookingScreenState extends State<BookingScreen> {
           ],
         ),
         child: ElevatedButton(
-          onPressed: _handleConfirmBooking,
+          onPressed: _isCreatingAppointment ? null : _handleConfirmBooking,
           style: ElevatedButton.styleFrom(
             backgroundColor: primaryDark,
             foregroundColor: Colors.white,
@@ -324,13 +375,22 @@ class _BookingScreenState extends State<BookingScreen> {
               borderRadius: BorderRadius.circular(15),
             ),
           ),
-          child: const Text(
-            'Confirm Booking',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          child: _isCreatingAppointment
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : const Text(
+                  'Confirm Booking',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
         ),
       ),
     );

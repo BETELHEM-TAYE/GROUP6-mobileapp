@@ -7,6 +7,9 @@ import 'property_detail_screen.dart';
 import 'profile_screen.dart';
 import 'new_post_screen.dart';
 import 'favorites_screen.dart';
+import 'messages_list_screen.dart';
+import 'all_properties_screen.dart';
+import 'appointments_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -231,7 +234,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   TextButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const AllPropertiesScreen(),
+                        ),
+                      );
+                    },
                     child: const Text(
                       'View All',
                       style: TextStyle(
@@ -343,6 +352,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   builder: (context) => const FavoritesScreen(),
                 ),
               );
+            } else if (index == 3) {
+              // Navigate to Messages screen
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const MessagesListScreen(),
+                ),
+              );
             } else if (index == 4) {
               // Navigate to Profile screen
               Navigator.of(context).push(
@@ -423,7 +439,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           );
         } else if (label == 'View Appointments') {
-          // TODO: Navigate to appointments screen when implemented
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const AppointmentsScreen(),
+            ),
+          );
         }
       },
       child: Container(
