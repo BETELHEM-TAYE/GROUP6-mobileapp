@@ -159,7 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
-                  hintText: 'Q Search Properties...',
+                  hintText: 'Search Properties...',
                   hintStyle: TextStyle(color: mediumGray),
                   prefixIcon: Icon(Icons.search, color: mediumGray),
                   suffixIcon: IconButton(

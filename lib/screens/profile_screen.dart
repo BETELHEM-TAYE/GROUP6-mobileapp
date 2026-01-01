@@ -210,50 +210,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 24),
             // Action Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _handleLogout,
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: primaryDark),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                    ),
-                    child: const Text(
-                      'Log Out',
-                      style: TextStyle(
-                        color: primaryDark,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: _handleLogout,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: primaryDark),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      // TODO: Add account functionality
-                    },
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: primaryDark),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                    ),
-                    child: const Text(
-                      '+ Add account',
-                      style: TextStyle(
-                        color: primaryDark,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                child: const Text(
+                  'Log Out',
+                  style: TextStyle(
+                    color: primaryDark,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-              ],
+              ),
             ),
             const SizedBox(height: 32),
             // Contact Section
@@ -329,45 +304,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ],
-            const SizedBox(height: 24),
-            // Payment Method Section
-            _buildSection(
-              icon: Icons.credit_card,
-              title: 'Payment Method',
-              children: [
-                GestureDetector(
-                  onTap: () => _showPaymentMethodPicker(user),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[300]!),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          user.paymentMethod ?? 'Select payment method',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: user.paymentMethod != null
-                                ? primaryDark
-                                : mediumGray,
-                          ),
-                        ),
-                        const Icon(
-                          Icons.arrow_forward_ios,
-                          size: 16,
-                          color: mediumGray,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
             const SizedBox(height: 100), // Space for bottom nav
           ],
         ),
@@ -521,7 +457,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
         decoration: BoxDecoration(
           color: isSelected ? primaryDark.withOpacity(0.1) : Colors.white,
           borderRadius: BorderRadius.circular(8),
@@ -532,28 +468,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
               color: isSelected ? primaryDark : mediumGray,
               size: 20,
             ),
-            const SizedBox(width: 8),
-            Text(
-              role,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected ? primaryDark : mediumGray,
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                role,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  color: isSelected ? primaryDark : mediumGray,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(width: 8),
-            if (isSelected)
+            if (isSelected) ...[
+              const SizedBox(width: 6),
               const Icon(
                 Icons.check_circle,
                 color: primaryDark,
                 size: 20,
               ),
+            ],
           ],
         ),
       ),
@@ -624,94 +565,5 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _showPaymentMethodPicker(User user) async {
-    final paymentMethods = [
-      'CBE (Commercial Bank of Ethiopia)',
-      'Abyssinia Bank',
-      'Bank of Abyssinia',
-      'Awash Bank',
-      'VISA',
-      'Mastercard',
-      'PayPal',
-    ];
-
-    final selectedMethod = await showModalBottomSheet<String>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (BuildContext context) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Select Payment Method',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: primaryDark,
-                ),
-              ),
-              const SizedBox(height: 16),
-              ...paymentMethods.map((method) {
-                final isSelected = user.paymentMethod == method;
-                return ListTile(
-                  title: Text(method),
-                  leading: Icon(
-                    isSelected ? Icons.check_circle : Icons.circle_outlined,
-                    color: isSelected ? primaryDark : mediumGray,
-                  ),
-                  onTap: () => Navigator.of(context).pop(method),
-                );
-              }),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (selectedMethod != null && selectedMethod != user.paymentMethod) {
-      try {
-        final updatedUser = User(
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          address: user.address,
-          dateOfBirth: user.dateOfBirth,
-          gender: user.gender,
-          aboutMe: user.aboutMe,
-          profileImageUrl: user.profileImageUrl,
-          userRole: user.userRole,
-          paymentMethod: selectedMethod,
-        );
-
-        await _databaseService.updateUserProfile(updatedUser);
-        if (mounted) {
-          setState(() {
-            _user = updatedUser;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Payment method updated successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error updating payment method: ${e.toString()}'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    }
-  }
 }
 
