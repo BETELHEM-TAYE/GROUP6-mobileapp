@@ -1,7 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'post_details_screen.dart';
+import 'dart:typed_data';
 
 class NewPostScreen extends StatefulWidget {
   const NewPostScreen({super.key});
@@ -17,14 +17,14 @@ class _NewPostScreenState extends State<NewPostScreen> {
   static const Color mediumGray = Color(0xFF9E9E9E);
 
   final ImagePicker _picker = ImagePicker();
-  List<File> _selectedImages = [];
+  List<XFile> _selectedImages = [];
 
   Future<void> _pickImages() async {
     try {
       final List<XFile> pickedFiles = await _picker.pickMultiImage();
       if (pickedFiles.isNotEmpty) {
         setState(() {
-          _selectedImages.addAll(pickedFiles.map((xfile) => File(xfile.path)));
+          _selectedImages.addAll(pickedFiles);
         });
       }
     } catch (e) {
@@ -104,19 +104,41 @@ class _NewPostScreenState extends State<NewPostScreen> {
                     ),
                   ],
                 ),
-                child: ClipRRect(
+                  child: ClipRRect(
                   borderRadius: BorderRadius.circular(15),
                   child: _selectedImages.length == 1
-                      ? Image.file(
-                          _selectedImages.first,
-                          fit: BoxFit.cover,
+                      ? FutureBuilder<Uint8List>(
+                          future: _selectedImages.first.readAsBytes(),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const Center(child: CircularProgressIndicator());
+                            }
+                            if (snapshot.hasError || snapshot.data == null) {
+                              return const Center(child: Icon(Icons.broken_image));
+                            }
+                            return Image.memory(
+                              snapshot.data!,
+                              fit: BoxFit.cover,
+                            );
+                          },
                         )
                       : PageView.builder(
                           itemCount: _selectedImages.length,
                           itemBuilder: (context, index) {
-                            return Image.file(
-                              _selectedImages[index],
-                              fit: BoxFit.cover,
+                            return FutureBuilder<Uint8List>(
+                              future: _selectedImages[index].readAsBytes(),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState == ConnectionState.waiting) {
+                                  return const Center(child: CircularProgressIndicator());
+                                }
+                                if (snapshot.hasError || snapshot.data == null) {
+                                  return const Center(child: Icon(Icons.broken_image));
+                                }
+                                return Image.memory(
+                                  snapshot.data!,
+                                  fit: BoxFit.cover,
+                                );
+                              },
                             );
                           },
                         ),

@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../widgets/form_card.dart';
 import '../widgets/custom_button.dart';
@@ -7,9 +7,11 @@ import '../services/storage_service.dart';
 import '../services/auth_service.dart';
 import '../models/property.dart';
 import 'home_screen.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
 
 class PostDetailsScreen extends StatefulWidget {
-  final List<File> images;
+  final List<XFile> images;
 
   const PostDetailsScreen({
     super.key,
@@ -92,6 +94,7 @@ class _PostDetailsScreenState extends State<PostDetailsScreen> {
     });
 
     try {
+      debugPrint('Starting _handlePost: images=${widget.images.length}, name=${_nameController.text}');
       // Get current user
       final user = _authService.getCurrentUser();
       if (user == null) {
@@ -102,16 +105,26 @@ class _PostDetailsScreenState extends State<PostDetailsScreen> {
       List<String> imageUrls = [];
       if (widget.images.isNotEmpty) {
         for (int i = 0; i < widget.images.length; i++) {
-          final file = widget.images[i];
-          final bytes = await file.readAsBytes();
-          final fileName = '${DateTime.now().millisecondsSinceEpoch}_$i${file.path.split('.').last}';
-          
-          final imageUrl = await _storageService.uploadPropertyImage(
-            bytes: bytes,
-            fileName: fileName,
-            userId: user.id,
-          );
-          imageUrls.add(imageUrl);
+          final xfile = widget.images[i];
+          try {
+            final bytes = await xfile.readAsBytes();
+            debugPrint('Uploading image $i, bytes=${bytes.length}');
+            String ext = p.extension(xfile.path);
+            if (ext.isEmpty) ext = '.jpg';
+            final fileName = '${DateTime.now().millisecondsSinceEpoch}_$i$ext';
+
+            final imageUrl = await _storageService.uploadPropertyImage(
+              bytes: bytes,
+              fileName: fileName,
+              userId: user.id,
+            );
+            debugPrint('Uploaded image $i -> $imageUrl');
+            imageUrls.add(imageUrl);
+          } catch (imgErr, st) {
+            debugPrint('Error uploading image $i: $imgErr');
+            debugPrint('$st');
+            rethrow;
+          }
         }
       }
 
@@ -224,11 +237,22 @@ class _PostDetailsScreenState extends State<PostDetailsScreen> {
                             });
                           },
                           itemBuilder: (context, index) {
-                            return Image.file(
-                              widget.images[index],
-                              fit: BoxFit.cover,
-                            );
-                          },
+                              return FutureBuilder<Uint8List>(
+                                future: widget.images[index].readAsBytes(),
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState == ConnectionState.waiting) {
+                                    return const Center(child: CircularProgressIndicator());
+                                  }
+                                  if (snapshot.hasError || snapshot.data == null) {
+                                    return const Center(child: Icon(Icons.broken_image));
+                                  }
+                                  return Image.memory(
+                                    snapshot.data!,
+                                    fit: BoxFit.cover,
+                                  );
+                                },
+                              );
+                            },
                         ),
                         // Dots Indicator
                         if (widget.images.length > 1)
